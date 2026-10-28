@@ -17,6 +17,26 @@ if (!defined('ABSPATH')) {
 define('CAROUSEL_CUTTER_VERSION', '1.0.1');
 
 // ---------------------------------------------------------------------------
+// Updates: Plugin Update Checker (https://github.com/YahnisElsts/plugin-update-checker)
+//
+// Checks the GitHub repo for new releases (falling back to tags, then the
+// main branch) and shows them on the Plugins screen like any other update.
+// To ship an update: bump the version here and in the header above, then
+// publish a GitHub release tagged with the same version (e.g. v1.0.2).
+// ---------------------------------------------------------------------------
+
+require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
+
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$carousel_cutter_updater = PucFactory::buildUpdateChecker(
+    'https://github.com/ayodejiaaa/CarouselCutter/',
+    __FILE__,
+    'carousel-cutter'
+);
+$carousel_cutter_updater->setBranch('main');
+
+// ---------------------------------------------------------------------------
 // Shortcode: [carousel_cutter]
 //
 // The tool runs inside an iframe pointing at the plugin's own static page
