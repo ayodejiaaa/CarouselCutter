@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Carousel Cutter
  * Description: A free tool that turns a block of text into ready-to-post Instagram carousel slides (1080x1350). Add [carousel_cutter] to any page. If the MarkSui Signup plugin is active, visitors can also opt in to email updates, captured into MarkSui.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Ayodeji Agboola
  * Author URI: https://ayodejiagboola.com
  * License: GPL-2.0-or-later
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CAROUSEL_CUTTER_VERSION', '1.0.1');
+define('CAROUSEL_CUTTER_VERSION', '1.0.2');
 
 // ---------------------------------------------------------------------------
 // Updates: Plugin Update Checker (https://github.com/YahnisElsts/plugin-update-checker)

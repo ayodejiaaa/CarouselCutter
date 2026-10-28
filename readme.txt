@@ -3,7 +3,7 @@ Contributors: ayodejiagboola
 Tags: instagram, carousel, social media, tool
 Requires at least: 5.8
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 
 Turn a block of text into ready-to-post Instagram carousel slides (1080x1350).
