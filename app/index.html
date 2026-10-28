@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Carousel Cutter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&family=Fraunces:wght@700&family=Source+Sans+3:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script src="jszip.min.js"></script>
+<style>
+/* Layout: two-pane workbench. Writing and settings on the left, a contact sheet of finished slides on the right; stacks on phones. Light only, to sit inside the host site. */
+:root{
+  --bg:#F4F5F8; --surface:#FFFFFF; --fg:#151923; --muted:#5D6574; --line:#DFE3EA;
+  --accent:#2747F5; --accent-ink:#FFFFFF; --warn:#8A4B00; --warn-bg:#FFF3DF; --ok:#0F6B3E; --err:#B42318;
+  --ui:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --display:"Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:transparent}
+body{color:var(--fg);font-family:var(--ui);font-size:15px;line-height:1.5;padding:4px 2px 8px}
+[hidden]{display:none!important}
+img{max-width:100%}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(26px,4vw,34px);letter-spacing:-.02em;margin:0;text-wrap:balance}
+h1 span{color:var(--accent)}
+.tag{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.04em}
+.grid{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}
+@media (min-width:920px){.grid{grid-template-columns:minmax(0,430px) minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0;display:flex;flex-direction:column;gap:18px}
+.field{display:flex;flex-direction:column;gap:8px;min-width:0}
+.label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.label output{font-family:var(--mono);text-transform:none;letter-spacing:0;color:var(--fg)}
+textarea,input[type=text],input[type=email]{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;resize:vertical}
+textarea#text{min-height:260px;line-height:1.55}
+textarea:focus-visible,input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.hint code{font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:0 5px;color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.check{display:flex;gap:10px;align-items:center;font-size:14px;cursor:pointer}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+.handle-in{position:relative}
+.handle-in span{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-family:var(--mono)}
+.handle-in input{padding-left:30px;font-family:var(--mono)}
+.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.sw{appearance:none;border:2px solid transparent;border-radius:10px;padding:0;cursor:pointer;aspect-ratio:4/5;max-width:100%;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.sw[aria-pressed="true"]{border-color:var(--fg)}
+.sw i{position:absolute;left:18%;right:18%;height:5px;border-radius:3px}
+.sw i:nth-child(1){top:32%}.sw i:nth-child(2){top:46%;right:35%}
+.sw b{position:absolute;left:18%;bottom:16%;width:22%;height:5px;border-radius:3px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--bg);gap:2px;flex-wrap:wrap}
+.seg button{font:inherit;font-size:13px;border:0;background:transparent;color:var(--muted);padding:6px 12px;border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.preview-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.count{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.count strong{color:var(--fg);font-weight:500}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.status{font-size:13px;color:var(--ok);min-height:1.5em;margin:-8px 0 0}
+.status.err{color:var(--err)}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 14px;font-size:14px;margin:0}
+.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+@media (max-width:520px){.sheet{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+figure{margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+figure img{width:100%;aspect-ratio:4/5;display:block;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+figcaption{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+figcaption .n{font-family:var(--mono)}
+.link{font:inherit;font-size:13px;font-weight:600;background:none;border:0;color:var(--accent);cursor:pointer;padding:2px 0}
+.empty{border:1px dashed var(--line);border-radius:12px;padding:40px 20px;text-align:center;color:var(--muted)}
+.optin{border-top:1px solid var(--line);padding-top:18px;display:flex;flex-direction:column;gap:10px}
+.optin h2{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.01em;margin:0}
+.optin p{margin:0;color:var(--muted);font-size:14px}
+.optin form{display:flex;gap:8px;flex-wrap:wrap}
+.optin input[type=email]{flex:1 1 220px;min-width:0;resize:none}
+.optin .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:0 4px}
+footer a{color:var(--fg);font-weight:600;text-decoration:none;border-bottom:1px solid var(--line)}
+footer a:hover{border-color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Carousel <span>Cutter</span></h1>
+    <div class="tag">1080 × 1350 · 4:5 portrait · free</div>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-label="Text and settings">
+      <div class="field">
+        <label class="label" for="text">Your text <span id="sampleTag" class="tag" hidden>sample, replace with yours</span></label>
+        <textarea id="text" spellcheck="true"></textarea>
+        <p class="hint">The first paragraph becomes the cover. A blank line starts a new idea. Put <code>---</code> on its own line to set every slide break yourself. Wrap words in <code>*asterisks*</code> to highlight them.</p>
+      </div>
+
+      <div class="field">
+        <label class="label" for="maxChars">Max text per slide <output id="maxOut">220 chars</output></label>
+        <input type="range" id="maxChars" min="80" max="420" step="10" value="220">
+        <label class="check"><input type="checkbox" id="merge"> Combine short paragraphs onto one slide</label>
+      </div>
+
+      <div class="field">
+        <span class="label">Look</span>
+        <div class="swatches" id="themes" role="group" aria-label="Colour theme"></div>
+        <div class="row">
+          <div class="seg" id="fonts" role="group" aria-label="Type style"></div>
+          <div class="seg" id="align" role="group" aria-label="Text alignment">
+            <button type="button" data-v="left">Left</button>
+            <button type="button" data-v="center">Centre</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="handle">Your Instagram handle</label>
+        <div class="handle-in"><span>@</span><input type="text" id="handle" placeholder="yourhandle" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      </div>
+
+      <div class="field">
+        <label class="check"><input type="checkbox" id="cta" checked> Add a closing slide</label>
+        <textarea id="ctaText" rows="3"></textarea>
+        <p class="hint"><code>{handle}</code> is replaced with your handle.</p>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Slides">
+      <div class="preview-head">
+        <div class="count" id="count"></div>
+        <div class="actions">
+          <button class="btn" id="shareBtn" type="button" hidden>Save to phone</button>
+          <button class="btn primary" id="zipBtn" type="button">Download all (.zip)</button>
+        </div>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <p class="warn" id="warn" hidden></p>
+      <div class="sheet" id="sheet"></div>
+
+      <div class="optin" id="optin" hidden>
+        <h2>Get notified of new styles and new tools</h2>
+        <p>Join my mailing list and I'll let you know when new slide styles and free tools go live. Unsubscribe any time.</p>
+        <form id="optinForm" novalidate>
+          <label class="hp" aria-hidden="true">Website <input type="text" name="website" id="website" tabindex="-1" autocomplete="off"></label>
+          <label for="email" class="hp">Email</label>
+          <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+          <button class="btn primary" type="submit" id="optinBtn">Join the list</button>
+        </form>
+        <p class="status" id="optinStatus" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <span>Your text never leaves your browser.</span>
+    <span id="credit"></span>
+  </footer>
+</div>
+
+<script>
+const W = 1080, H = 1350, PAD = 100;
+const THEMES = {
+  ink:    { name:"Ink",    bg:"#0F1E36", fg:"#F3EFE6", muted:"rgba(243,239,230,.58)", track:"rgba(243,239,230,.18)", accent:"#F2B544" },
+  paper:  { name:"Paper",  bg:"#FFFFFF", fg:"#121419", muted:"rgba(18,20,25,.52)",    track:"rgba(18,20,25,.12)",    accent:"#2747F5" },
+  forest: { name:"Forest", bg:"#0E3B2E", fg:"#EAF4EE", muted:"rgba(234,244,238,.58)", track:"rgba(234,244,238,.18)", accent:"#8FE3B0" },
+  signal: { name:"Signal", bg:"#FFD84D", fg:"#141414", muted:"rgba(20,20,20,.58)",    track:"rgba(20,20,20,.15)",    accent:"#1D3BEA" },
+  plum:   { name:"Plum",   bg:"#28132F", fg:"#F8EDF5", muted:"rgba(248,237,245,.58)", track:"rgba(248,237,245,.18)", accent:"#FF8FB1" },
+};
+const FONTS = {
+  bold:      { name:"Bold",      display:'"Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif', dw:800, body:'"Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif', bw:500 },
+  editorial: { name:"Editorial", display:'"Fraunces", Georgia, serif', dw:700, body:'"Source Sans 3", "Helvetica Neue", Arial, sans-serif', bw:500 },
+  technical: { name:"Technical", display:'"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif', dw:700, body:'"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif', bw:400 },
+};
+const LABEL = '"IBM Plex Mono", Menlo, Consolas, monospace';
+const SAMPLE = `Most founders don't have a marketing problem. They have a *clarity* problem.
+
+If you can't explain what you do in one sentence, no ad budget will save you.
+
+Start with the customer's problem, in their words. Not your features. Not your tech stack. The thing that keeps them up at night.
+
+Then say what changes for them after they use you. Before and after. That's your message.
+
+Test it on 10 real people before you spend a naira on ads. If they can repeat it back to you, you're ready.
+
+*Clarity first. Then scale.*`;
+const CTA_DEFAULT = `Found this useful?
+
+Follow *@{handle}* for more.`;
+
+const $ = id => document.getElementById(id);
+const els = { text:$("text"), maxChars:$("maxChars"), maxOut:$("maxOut"), merge:$("merge"), handle:$("handle"),
+  cta:$("cta"), ctaText:$("ctaText"), sheet:$("sheet"), count:$("count"), warn:$("warn"), zipBtn:$("zipBtn"),
+  shareBtn:$("shareBtn"), status:$("status"), sampleTag:$("sampleTag") };
+
+let state = { theme:"ink", font:"bold", align:"left" };
+let rendered = [];
+
+/* ---------- config from the shortcode (query string) ---------- */
+const qs = new URLSearchParams(location.search);
+(function config(){
+  const credit = qs.get("credit"), name = qs.get("name") || "Ayodeji Agboola";
+  const c = $("credit");
+  try{
+    const u = new URL(credit);
+    if (u.protocol === "https:" || u.protocol === "http:"){
+      c.textContent = "Built by ";
+      const a = document.createElement("a"); a.href = u.href; a.target = "_top"; a.textContent = name;
+      c.append(a, document.createTextNode(" · "));
+      const b = document.createElement("a"); b.href = u.href; b.target = "_top"; b.textContent = "Book a strategy session";
+      c.append(b);
+    }
+  }catch(e){ c.textContent = "Built by " + name; }
+  try{
+    const s = new URL(qs.get("subscribe"));
+    if (s.origin === location.origin){ $("optin").hidden = false; window.__subscribeUrl = s.href; }
+  }catch(e){}
+})();
+
+/* ---------- persistence (per-visitor draft) ---------- */
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem("carousel-cutter") || "null");
+    if (s){
+      els.text.value = s.text ?? SAMPLE; els.maxChars.value = s.max ?? 220; els.merge.checked = !!s.merge;
+      els.handle.value = s.handle ?? ""; els.cta.checked = s.cta ?? true; els.ctaText.value = s.ctaText ?? CTA_DEFAULT;
+      if (THEMES[s.theme]) state.theme = s.theme; if (FONTS[s.font]) state.font = s.font; if (s.align) state.align = s.align;
+      return;
+    }
+  }catch(e){}
+  els.text.value = SAMPLE; els.ctaText.value = CTA_DEFAULT;
+}
+function persist(){
+  try{ localStorage.setItem("carousel-cutter", JSON.stringify({ text:els.text.value, max:+els.maxChars.value, merge:els.merge.checked,
+    handle:els.handle.value, cta:els.cta.checked, ctaText:els.ctaText.value, ...state })); }catch(e){}
+}
+
+/* ---------- splitting ---------- */
+function sentences(p){
+  const m = p.match(/[^.!?]+(?:[.!?]+["'’”)\]*]*|$)\s*/g);
+  return (m || [p]).map(s => s.trim()).filter(Boolean);
+}
+function pack(units, sep, max){
+  const out = []; let cur = "";
+  for (const u of units){ const t = cur ? cur + sep + u : u; if (t.length > max && cur){ out.push(cur); cur = u; } else cur = t; }
+  if (cur) out.push(cur); return out;
+}
+function splitProse(p, max){ return pack(sentences(p).flatMap(s => s.length > max ? pack(s.split(/\s+/), " ", max) : [s]), " ", max); }
+function splitPara(p, max){
+  if (p.length <= max) return [p];
+  if (p.includes("\n")) return pack(p.split("\n").flatMap(l => l.length > max ? splitProse(l, max) : [l]), "\n", max);
+  return splitProse(p, max);
+}
+function buildChunks(text, max, merge){
+  text = text.replace(/\r/g, "").trim();
+  if (!text) return [];
+  if (/^\s*---\s*$/m.test(text)) return text.split(/^\s*---\s*$/m).map(s => s.trim()).filter(Boolean);
+  const paras = text.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+  let first = paras.shift();
+  if (first.length > 160){
+    const ss = sentences(first.replace(/\n/g, " "));
+    first = ss[0]; const rest = ss.slice(1).join(" "); if (rest) paras.unshift(rest);
+  }
+  let body = paras.flatMap(p => splitPara(p, max));
+  if (merge) body = pack(body, "\n\n", max);
+  return [first, ...body];
+}
+
+/* ---------- drawing ---------- */
+function tokenize(text){
+  return text.replace(/\*\*/g, "*").split("\n").map(line => {
+    const words = [];
+    line.split(/(\*[^*\n]+\*)/).forEach(seg => {
+      const acc = /^\*[^*]+\*$/.test(seg);
+      (acc ? seg.slice(1, -1) : seg).split(/\s+/).filter(Boolean).forEach(w => words.push({ w, acc }));
+    });
+    return words;
+  });
+}
+function layout(ctx, src, maxW){
+  const space = ctx.measureText(" ").width, out = [];
+  for (const words of src){
+    if (!words.length){ out.push({ words:[], w:0 }); continue; }
+    let line = [], lw = 0;
+    for (const t of words){
+      const ww = ctx.measureText(t.w).width;
+      const nw = line.length ? lw + space + ww : ww;
+      if (nw > maxW && line.length){ out.push({ words:line, w:lw }); line = [{ ...t, ww }]; lw = ww; }
+      else { line.push({ ...t, ww }); lw = nw; }
+    }
+    out.push({ words:line, w:lw });
+  }
+  return { lines:out, space };
+}
+function fit(ctx, text, family, weight, maxW, maxH, hi, lo, lh){
+  const src = tokenize(text);
+  for (let s = hi; s >= lo; s -= 2){
+    ctx.font = `${weight} ${s}px ${family}`;
+    const L = layout(ctx, src, maxW);
+    if (L.lines.length * s * lh <= maxH && !L.lines.some(l => l.w > maxW)) return { size:s, ...L };
+  }
+  ctx.font = `${weight} ${lo}px ${family}`;
+  return { size:lo, ...layout(ctx, src, maxW) };
+}
+function roundRect(ctx, x, y, w, h, r){ ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); ctx.fill(); }
+
+function drawSlide(text, kind, i, n, opt){
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const ctx = c.getContext("2d"), T = THEMES[opt.theme], F = FONTS[opt.font];
+  ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = "alphabetic";
+
+  ctx.font = `500 30px ${LABEL}`; ctx.fillStyle = T.muted;
+  ctx.textAlign = "left"; ctx.fillText(opt.handle ? "@" + opt.handle : "", PAD, PAD + 22);
+  ctx.textAlign = "right"; ctx.fillText(`${String(i + 1).padStart(2, "0")} / ${String(n).padStart(2, "0")}`, W - PAD, PAD + 22);
+  ctx.textAlign = "left";
+
+  const barY = H - PAD - 6;
+  ctx.fillStyle = T.track; roundRect(ctx, PAD, barY, W - PAD * 2, 6, 3);
+  ctx.fillStyle = T.accent; roundRect(ctx, PAD, barY, (W - PAD * 2) * ((i + 1) / n), 6, 3);
+  if (i < n - 1){
+    ctx.font = `500 28px ${LABEL}`; ctx.fillStyle = T.muted; ctx.textAlign = "right";
+    ctx.fillText("Swipe →", W - PAD, barY - 34); ctx.textAlign = "left";
+  }
+
+  const top = 230, bottom = H - 230, maxW = W - PAD * 2, maxH = bottom - top - 60;
+  const display = kind !== "body";
+  const lh = display ? 1.14 : 1.32;
+  const R = display
+    ? fit(ctx, text, F.display, F.dw, maxW, maxH, kind === "cover" ? 112 : 92, 44, lh)
+    : fit(ctx, text, F.body, F.bw, maxW, maxH, 66, 32, lh);
+  const lineH = R.size * lh, blockH = R.lines.length * lineH, ruleGap = 56;
+  let y0 = top + (bottom - top - blockH - ruleGap) / 2;
+  if (kind === "cover") y0 = Math.max(top, bottom - blockH - ruleGap - 40);
+
+  ctx.fillStyle = T.accent;
+  roundRect(ctx, opt.align === "center" ? (W - 88) / 2 : PAD, y0, 88, 10, 5);
+
+  let y = y0 + ruleGap + R.size * 0.9;
+  for (const line of R.lines){
+    let x = opt.align === "center" ? (W - line.w) / 2 : PAD;
+    for (const t of line.words){ ctx.fillStyle = t.acc ? T.accent : T.fg; ctx.fillText(t.w, x, y); x += t.ww + R.space; }
+    y += lineH;
+  }
+  return c;
+}
+
+/* ---------- render loop ---------- */
+function currentHandle(){ return els.handle.value.trim().replace(/^@+/, "").replace(/\s+/g, ""); }
+function render(){
+  persist();
+  els.maxOut.textContent = els.maxChars.value + " chars";
+  els.sampleTag.hidden = els.text.value.trim() !== SAMPLE.trim();
+  const handle = currentHandle();
+  const chunks = buildChunks(els.text.value, +els.maxChars.value, els.merge.checked);
+  const items = chunks.map((t, i) => ({ t, kind: i === 0 ? "cover" : "body" }));
+  let cta = els.ctaText.value.trim();
+  cta = handle ? cta.replace(/\{handle\}/g, handle) : cta.split("\n").filter(l => !l.includes("{handle}")).join("\n").trim() || "Follow for more.";
+  if (items.length && els.cta.checked && cta) items.push({ t: cta, kind: "cta" });
+  const n = items.length, opt = { ...state, handle };
+  rendered = items.map((it, i) => drawSlide(it.t, it.kind, i, n, opt));
+
+  els.sheet.innerHTML = "";
+  if (!n) els.sheet.innerHTML = `<div class="empty">Paste your text on the left and the slides appear here.</div>`;
+  rendered.forEach((c, i) => {
+    const fig = document.createElement("figure");
+    const img = new Image(); img.src = c.toDataURL("image/png"); img.alt = `Slide ${i + 1}: ${items[i].t.replace(/\*/g, "")}`;
+    const cap = document.createElement("figcaption");
+    const label = items[i].kind === "cover" ? "Cover" : items[i].kind === "cta" ? "Closing" : "Slide";
+    const span = document.createElement("span"); span.innerHTML = `<span class="n">${String(i + 1).padStart(2, "0")}</span> · ${label}`;
+    const b = document.createElement("button"); b.className = "link"; b.type = "button"; b.textContent = "Save PNG";
+    b.addEventListener("click", () => saveOne(i));
+    cap.append(span, b); fig.append(img, cap); els.sheet.appendChild(fig);
+  });
+  els.count.innerHTML = n ? `<strong>${n}</strong> slide${n === 1 ? "" : "s"}` : "No slides yet";
+  els.zipBtn.disabled = els.shareBtn.disabled = !n;
+  els.warn.hidden = n <= 20;
+  els.warn.textContent = `Instagram allows up to 20 slides per post. You have ${n}. Raise the max text per slide or turn on combining.`;
+  reportHeight();
+}
+let timer; function schedule(){ clearTimeout(timer); timer = setTimeout(render, 180); }
+
+/* ---------- saving ---------- */
+function say(msg, err){ els.status.textContent = msg; els.status.classList.toggle("err", !!err); clearTimeout(say.t); say.t = setTimeout(() => els.status.textContent = "", 4000); }
+const blobOf = c => new Promise(r => c.toBlob(r, "image/png"));
+const base = () => (currentHandle() || "carousel") + "-carousel";
+const fname = i => `${base()}-${String(i + 1).padStart(2, "0")}.png`;
+function downloadBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+async function saveOne(i){ downloadBlob(await blobOf(rendered[i]), fname(i)); say("Slide saved."); }
+
+els.zipBtn.addEventListener("click", async () => {
+  if (!rendered.length) return;
+  if (!window.JSZip){ say("Couldn't build the zip. Save the slides one by one instead.", true); return; }
+  els.zipBtn.disabled = true; els.zipBtn.textContent = "Packing…";
+  try{
+    const zip = new JSZip();
+    for (let i = 0; i < rendered.length; i++) zip.file(fname(i), await blobOf(rendered[i]));
+    downloadBlob(await zip.generateAsync({ type:"blob" }), `${base()}.zip`);
+    say(`${rendered.length} slides saved.`);
+  }catch(e){ say("Couldn't build the zip. Save the slides one by one instead.", true); }
+  finally{ els.zipBtn.disabled = false; els.zipBtn.textContent = "Download all (.zip)"; }
+});
+
+// Phones: the share sheet can save every slide straight to Photos, which beats a zip.
+(function setupShare(){
+  try{
+    const probe = new File([new Blob(["x"], { type:"image/png" })], "probe.png", { type:"image/png" });
+    if (!navigator.canShare || !navigator.canShare({ files:[probe] })) return;
+  }catch(e){ return; }
+  els.shareBtn.hidden = false;
+  els.shareBtn.addEventListener("click", async () => {
+    try{
+      const files = await Promise.all(rendered.map(async (c, i) => new File([await blobOf(c)], fname(i), { type:"image/png" })));
+      await navigator.share({ files });
+    }catch(e){ if (e && e.name !== "AbortError") say("Your phone didn't accept the slides. Use Download all instead.", true); }
+  });
+})();
+
+/* ---------- email opt-in ---------- */
+$("optinForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const st = $("optinStatus"), btn = $("optinBtn"), email = $("email").value.trim();
+  st.classList.remove("err");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ st.textContent = "Enter a valid email address."; st.classList.add("err"); return; }
+  btn.disabled = true; st.textContent = "Adding you to the list…";
+  try{
+    const r = await fetch(window.__subscribeUrl, { method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email, website: $("website").value }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok){ $("optinForm").hidden = true; st.textContent = "You're on the list. Thanks!"; }
+    else { st.textContent = j.error || "Couldn't sign you up. Try again in a minute."; st.classList.add("err"); }
+  }catch(err){ st.textContent = "Couldn't reach the server. Check your connection and try again."; st.classList.add("err"); }
+  finally{ btn.disabled = false; reportHeight(); }
+});
+
+/* ---------- fit the host iframe ---------- */
+function reportHeight(){
+  if (window.parent === window) return;
+  window.parent.postMessage({ type:"carousel-cutter:height", height: Math.ceil(document.documentElement.scrollHeight) }, "*");
+}
+if (window.ResizeObserver) new ResizeObserver(reportHeight).observe(document.body);
+window.addEventListener("load", reportHeight);
+
+/* ---------- controls ---------- */
+function buildControls(){
+  const tw = $("themes");
+  for (const [k, t] of Object.entries(THEMES)){
+    const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.dataset.v = k;
+    b.style.background = t.bg; b.setAttribute("aria-label", t.name); b.title = t.name;
+    b.innerHTML = `<i style="background:${t.fg}"></i><i style="background:${t.fg};opacity:.6"></i><b style="background:${t.accent}"></b>`;
+    tw.appendChild(b);
+  }
+  const fw = $("fonts");
+  for (const [k, f] of Object.entries(FONTS)){
+    const b = document.createElement("button"); b.type = "button"; b.dataset.v = k; b.textContent = f.name;
+    b.style.fontFamily = f.display; fw.appendChild(b);
+  }
+  [["themes","theme"],["fonts","font"],["align","align"]].forEach(([id, key]) => {
+    const g = $(id);
+    const sync = () => g.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === state[key])));
+    g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state[key] = b.dataset.v; sync(); render(); });
+    sync();
+  });
+  ["text","maxChars","handle","ctaText"].forEach(id => els[id].addEventListener("input", schedule));
+  ["merge","cta"].forEach(id => els[id].addEventListener("change", render));
+}
+
+load(); buildControls(); render();
+if (document.fonts){
+  Promise.all([
+    '800 40px "Bricolage Grotesque"','500 40px "Bricolage Grotesque"','700 40px "Fraunces"','500 40px "Source Sans 3"',
+    '700 40px "IBM Plex Sans"','400 40px "IBM Plex Sans"','500 40px "IBM Plex Mono"'
+  ].map(f => document.fonts.load(f).catch(() => {}))).then(render);
+}
+</script>
+</body>
+</html>
