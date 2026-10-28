@@ -53,6 +53,8 @@ function carousel_cutter_render_shortcode($atts) {
         'credit_name' => 'Ayodeji Agboola',
         // "auto" shows the email opt-in only when MarkSui Signup is active; "no" hides it.
         'subscribe'   => 'auto',
+        // "no" hides the usage counter (people and slides) under the tool.
+        'counter'     => 'yes',
     ], $atts, 'carousel_cutter');
 
     $params = [
@@ -60,6 +62,9 @@ function carousel_cutter_render_shortcode($atts) {
         'credit' => esc_url_raw($atts['credit_url']),
         'name'   => sanitize_text_field($atts['credit_name']),
     ];
+    if ($atts['counter'] !== 'no') {
+        $params['stats'] = esc_url_raw(rest_url('carousel-cutter/v1/stats'));
+    }
     if ($atts['subscribe'] !== 'no' && function_exists('marksui_send_contact')) {
         $params['subscribe'] = esc_url_raw(rest_url('carousel-cutter/v1/subscribe'));
     }
@@ -134,4 +139,81 @@ function carousel_cutter_handle_subscribe(WP_REST_Request $request) {
     marksui_send_contact($email, ['carousel-cutter', 'tool']);
 
     return new WP_REST_Response(['ok' => true], 201);
+}
+
+// ---------------------------------------------------------------------------
+// Usage counter: GET/POST /wp-json/carousel-cutter/v1/stats
+//
+// GET returns the totals shown under the tool. POST records one finished
+// export: how many slides were saved, and whether this browser has been
+// counted as a person before. Only two numbers are stored, never any text,
+// IP address or identifier. "People" are unique browsers (the tool remembers
+// that it has counted a browser in that browser's own localStorage).
+// Totals live in two options and are bumped with an atomic SQL update.
+// ---------------------------------------------------------------------------
+
+add_action('rest_api_init', function () {
+    register_rest_route('carousel-cutter/v1', '/stats', [
+        [
+            'methods'             => 'GET',
+            'callback'            => 'carousel_cutter_get_stats',
+            'permission_callback' => '__return_true',
+        ],
+        [
+            'methods'             => 'POST',
+            'callback'            => 'carousel_cutter_track',
+            'permission_callback' => '__return_true',
+        ],
+    ]);
+});
+
+function carousel_cutter_read_stats() {
+    $stats = [];
+    foreach (['users', 'slides'] as $name) {
+        $key = 'carousel_cutter_' . $name;
+        wp_cache_delete($key, 'options'); // another request may have bumped it
+        $stats[$name] = max(0, (int) get_option($key, 0));
+    }
+    return $stats;
+}
+
+function carousel_cutter_bump($name, $by) {
+    global $wpdb;
+    $key = 'carousel_cutter_' . $name;
+    add_option($key, 0, '', 'no'); // does nothing if it already exists
+    $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options} SET option_value = option_value + %d WHERE option_name = %s",
+        $by,
+        $key
+    ));
+    wp_cache_delete($key, 'options');
+}
+
+function carousel_cutter_get_stats() {
+    $response = new WP_REST_Response(carousel_cutter_read_stats(), 200);
+    $response->header('Cache-Control', 'no-store');
+    return $response;
+}
+
+function carousel_cutter_track(WP_REST_Request $request) {
+    $slides = (int) $request->get_param('slides');
+    if ($slides < 1 || $slides > 30) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'Invalid slide count.'], 400);
+    }
+
+    // Per-IP hourly limit so the numbers can't be run up by a script in a loop.
+    $ip   = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown';
+    $key  = 'carousel_cutter_track_' . md5($ip);
+    $hits = (int) get_transient($key);
+    if ($hits >= 60) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'Too many requests.'], 429);
+    }
+    set_transient($key, $hits + 1, HOUR_IN_SECONDS);
+
+    carousel_cutter_bump('slides', $slides);
+    if (!rest_sanitize_boolean($request->get_param('returning'))) {
+        carousel_cutter_bump('users', 1);
+    }
+
+    return new WP_REST_Response(['ok' => true] + carousel_cutter_read_stats(), 201);
 }
