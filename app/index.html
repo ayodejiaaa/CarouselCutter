@@ -47,7 +47,19 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .handle-in{position:relative}
 .handle-in span{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-family:var(--mono)}
 .handle-in input{padding-left:30px;font-family:var(--mono)}
-.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.sw.custom-sw{background:conic-gradient(#ff5f6d,#ffc371,#7ed957,#4cc9f0,#8a63ff,#ff63c3,#ff5f6d)}
+.sw.custom-sw::after{content:"+";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:55%;aspect-ratio:1;border-radius:50%;background:#fff;color:#151923;font-size:18px;font-weight:700;line-height:1;display:grid;place-items:center}
+.custom{display:flex;flex-direction:column;gap:10px;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px}
+.custom[hidden]{display:none}
+.cfield{display:flex;align-items:center;gap:8px}
+.cfield label{flex:0 0 70px;font-size:13px;font-weight:600;color:var(--muted)}
+.cfield input[type=color]{appearance:none;-webkit-appearance:none;width:40px;height:40px;padding:0;border:1px solid var(--line);border-radius:8px;background:none;cursor:pointer;flex:none}
+.cfield input[type=color]::-webkit-color-swatch-wrapper{padding:3px}
+.cfield input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
+.cfield input[type=color]::-moz-color-swatch{border:0;border-radius:5px}
+.cfield input[type=text]{flex:1;min-width:0;width:auto;padding:10px 8px;font-family:var(--mono);font-size:14px;text-transform:uppercase}
+.cfield input[aria-invalid="true"]{border-color:#C0392B}
 .sw{appearance:none;border:2px solid transparent;border-radius:10px;padding:0;cursor:pointer;aspect-ratio:4/5;max-width:100%;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 .sw[aria-pressed="true"]{border-color:var(--fg)}
 .sw i{position:absolute;left:18%;right:18%;height:5px;border-radius:3px}
@@ -112,6 +124,20 @@ footer a:hover{border-color:var(--fg)}
       <div class="field">
         <span class="label">Look</span>
         <div class="swatches" id="themes" role="group" aria-label="Colour theme"></div>
+        <div class="custom" id="customFields" hidden>
+          <div class="cfield">
+            <label for="bgHex">Background</label>
+            <input type="color" id="bgPick" aria-label="Background colour picker">
+            <input type="text" id="bgHex" maxlength="7" placeholder="#0F1E36" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="customHint">
+          </div>
+          <div class="cfield">
+            <label for="accHex">Accent</label>
+            <input type="color" id="accPick" aria-label="Accent colour picker">
+            <input type="text" id="accHex" maxlength="7" placeholder="#F2B544" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="customHint">
+          </div>
+          <p class="hint" id="customHint">Pick a colour or type a hex code like <code>#0F1E36</code>. Text colour is chosen automatically for contrast; the accent colours highlighted words and the progress bar.</p>
+          <p class="hint" id="customWarn" role="status" hidden>The accent is hard to see on this background. Try a lighter or darker accent.</p>
+        </div>
         <div class="row">
           <div class="seg" id="fonts" role="group" aria-label="Type style"></div>
           <div class="seg" id="align" role="group" aria-label="Text alignment">
@@ -205,7 +231,33 @@ const els = { text:$("text"), maxChars:$("maxChars"), maxOut:$("maxOut"), merge:
   cta:$("cta"), ctaText:$("ctaText"), sheet:$("sheet"), count:$("count"), warn:$("warn"), zipBtn:$("zipBtn"),
   shareBtn:$("shareBtn"), status:$("status"), sampleTag:$("sampleTag") };
 
-let state = { theme:"ink", font:"bold", align:"left" };
+let state = { theme:"ink", font:"bold", align:"left", custom:{ bg:THEMES.ink.bg, accent:THEMES.ink.accent } };
+
+/* ---------- custom colours ---------- */
+let customEdited = false; // true once the visitor has chosen custom colours (this visit or a saved one)
+// "custom" is a sixth theme: the visitor picks the background and accent, the text colours are derived for contrast.
+function normHex(v){
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(v).trim());
+  if (!m) return null;
+  let h = m[1].toUpperCase();
+  if (h.length === 3) h = h.replace(/./g, "$&$&");
+  return "#" + h;
+}
+const rgbOf = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+function luminance(hex){
+  const [r, g, b] = rgbOf(hex).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
+  return .2126 * r + .7152 * g + .0722 * b;
+}
+function contrast(a, b){ const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + .05) / (lo + .05); }
+function customTheme(){
+  const { bg, accent } = state.custom;
+  // Pick whichever text colour reads better on the chosen background.
+  const dark = "#121419", light = "#F3EFE6";
+  const fg = contrast(bg, light) >= contrast(bg, dark) ? light : dark;
+  const [r, g, b] = rgbOf(fg);
+  return { name:"Custom", bg, fg, accent, muted:`rgba(${r},${g},${b},.58)`, track:`rgba(${r},${g},${b},.18)` };
+}
+const getTheme = key => key === "custom" ? customTheme() : THEMES[key];
 let rendered = [];
 
 /* ---------- config from the shortcode (query string) ---------- */
@@ -264,7 +316,8 @@ function load(){
     if (s){
       els.text.value = s.text ?? SAMPLE; els.maxChars.value = s.max ?? 220; els.merge.checked = !!s.merge;
       els.handle.value = s.handle ?? ""; els.cta.checked = s.cta ?? true; els.ctaText.value = s.ctaText ?? CTA_DEFAULT;
-      if (THEMES[s.theme]) state.theme = s.theme; if (FONTS[s.font]) state.font = s.font; if (s.align) state.align = s.align;
+      if (s.custom){ const bg = normHex(s.custom.bg), accent = normHex(s.custom.accent); if (bg && accent){ state.custom = { bg, accent }; customEdited = true; } }
+      if (THEMES[s.theme] || s.theme === "custom") state.theme = s.theme; if (FONTS[s.font]) state.font = s.font; if (s.align) state.align = s.align;
       return;
     }
   }catch(e){}
@@ -346,7 +399,7 @@ function roundRect(ctx, x, y, w, h, r){ ctx.beginPath(); ctx.roundRect ? ctx.rou
 
 function drawSlide(text, kind, i, n, opt){
   const c = document.createElement("canvas"); c.width = W; c.height = H;
-  const ctx = c.getContext("2d"), T = THEMES[opt.theme], F = FONTS[opt.font];
+  const ctx = c.getContext("2d"), T = getTheme(opt.theme), F = FONTS[opt.font];
   ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H);
   ctx.textBaseline = "alphabetic";
 
@@ -496,6 +549,29 @@ function buildControls(){
     b.innerHTML = `<i style="background:${t.fg}"></i><i style="background:${t.fg};opacity:.6"></i><b style="background:${t.accent}"></b>`;
     tw.appendChild(b);
   }
+  const cb = document.createElement("button"); cb.type = "button"; cb.className = "sw custom-sw"; cb.dataset.v = "custom";
+  cb.setAttribute("aria-label", "Custom colours"); cb.title = "Custom colours"; tw.appendChild(cb);
+
+  const fields = { bg:[$("bgPick"), $("bgHex")], accent:[$("accPick"), $("accHex")] };
+  function updateCustomUI(){
+    $("customFields").hidden = state.theme !== "custom";
+    for (const [k, [pick, hex]] of Object.entries(fields)){
+      pick.value = state.custom[k].toLowerCase();
+      if (document.activeElement !== hex){ hex.value = state.custom[k]; hex.removeAttribute("aria-invalid"); }
+    }
+    $("customWarn").hidden = contrast(state.custom.accent, state.custom.bg) >= 3;
+  }
+  function setCustom(k, v){ state.custom[k] = v; customEdited = true; updateCustomUI(); schedule(); }
+  for (const [k, [pick, hex]] of Object.entries(fields)){
+    pick.addEventListener("input", () => setCustom(k, pick.value.toUpperCase()));
+    hex.addEventListener("input", () => {
+      const n = normHex(hex.value);
+      if (n){ hex.removeAttribute("aria-invalid"); setCustom(k, n); }
+      else hex.setAttribute("aria-invalid", String(hex.value.trim() !== ""));
+    });
+    hex.addEventListener("blur", () => { hex.value = state.custom[k]; hex.removeAttribute("aria-invalid"); });
+  }
+
   const fw = $("fonts");
   for (const [k, f] of Object.entries(FONTS)){
     const b = document.createElement("button"); b.type = "button"; b.dataset.v = k; b.textContent = f.name;
@@ -504,9 +580,15 @@ function buildControls(){
   [["themes","theme"],["fonts","font"],["align","align"]].forEach(([id, key]) => {
     const g = $(id);
     const sync = () => g.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === state[key])));
-    g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state[key] = b.dataset.v; sync(); render(); });
+    g.addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      // First time on Custom: start from the preset they were looking at rather than a blank slate.
+      if (key === "theme" && b.dataset.v === "custom" && !customEdited && THEMES[state.theme]) state.custom = { bg:THEMES[state.theme].bg, accent:THEMES[state.theme].accent };
+      state[key] = b.dataset.v; sync(); if (key === "theme") updateCustomUI(); render();
+    });
     sync();
   });
+  updateCustomUI();
   ["text","maxChars","handle","ctaText"].forEach(id => els[id].addEventListener("input", schedule));
   ["merge","cta"].forEach(id => els[id].addEventListener("change", render));
 }
