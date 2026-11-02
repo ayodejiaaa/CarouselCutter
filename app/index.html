@@ -296,7 +296,9 @@ function showStats(j){
 }
 (function loadStats(){
   if (!window.__statsUrl) return;
-  fetch(window.__statsUrl, { cache:"no-store" }).then(r => r.ok ? r.json() : null).then(showStats).catch(() => {});
+  // A changing query string keeps any server or CDN cache from handing back an old total.
+  const u = new URL(window.__statsUrl); u.searchParams.set("t", Date.now());
+  fetch(u.href, { cache:"no-store" }).then(r => r.ok ? r.json() : null).then(showStats).catch(() => {});
 })();
 function trackExport(slides){
   if (!window.__statsUrl || !slides) return;

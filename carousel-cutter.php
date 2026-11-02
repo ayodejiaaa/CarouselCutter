@@ -190,8 +190,12 @@ function carousel_cutter_bump($name, $by) {
 }
 
 function carousel_cutter_get_stats() {
+    // Page caches (LiteSpeed Cache on this host) can store REST responses and ignore
+    // Cache-Control, which froze the counter at an old value. Opt out explicitly.
+    do_action('litespeed_control_set_nocache', 'carousel-cutter stats');
     $response = new WP_REST_Response(carousel_cutter_read_stats(), 200);
-    $response->header('Cache-Control', 'no-store');
+    $response->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    $response->header('X-LiteSpeed-Cache-Control', 'no-cache');
     return $response;
 }
 
