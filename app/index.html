@@ -32,6 +32,12 @@ h1 span{color:var(--accent)}
 .grid{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}
 @media (min-width:920px){.grid{grid-template-columns:minmax(0,430px) minmax(0,1fr)}}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0;display:flex;flex-direction:column;gap:18px}
+/* Wide screens: the writing/settings panel stays in view and scrolls on its own while the slides scroll past.
+   Standalone, position:sticky does this. Inside the host page's iframe (which is as tall as its content and never scrolls
+   itself) the page script reports the viewport and placeFrameSticky() moves the panel instead. */
+@media (min-width:920px){
+  .panel.controls{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain;will-change:transform}
+}
 .field{display:flex;flex-direction:column;gap:8px;min-width:0}
 .label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
 .label output{font-family:var(--mono);text-transform:none;letter-spacing:0;color:var(--fg)}
@@ -65,6 +71,15 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .sw i{position:absolute;left:18%;right:18%;height:5px;border-radius:3px}
 .sw i:nth-child(1){top:32%}.sw i:nth-child(2){top:46%;right:35%}
 .sw b{position:absolute;left:18%;bottom:16%;width:22%;height:5px;border-radius:3px}
+.imgrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.imglabel{flex:0 0 82px;font-size:13px;font-weight:600;color:var(--muted)}
+.btn.small{font-size:13px;padding:7px 12px;display:inline-block}
+.file-btn{position:relative;cursor:pointer}
+.file-btn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}
+.file-btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.imgname{font-size:13px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.imgopts{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px}
+.hint.err{color:var(--err)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--bg);gap:2px;flex-wrap:wrap}
 .seg button{font:inherit;font-size:13px;border:0;background:transparent;color:var(--muted);padding:6px 12px;border-radius:7px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
@@ -108,7 +123,7 @@ footer a:hover{border-color:var(--fg)}
   </header>
 
   <div class="grid">
-    <section class="panel" aria-label="Text and settings">
+    <section class="panel controls" id="controls" aria-label="Text and settings">
       <div class="field">
         <label class="label" for="text">Your text <span id="sampleTag" class="tag" hidden>sample, replace with yours</span></label>
         <textarea id="text" spellcheck="true"></textarea>
@@ -145,6 +160,45 @@ footer a:hover{border-color:var(--fg)}
             <button type="button" data-v="center">Centre</button>
           </div>
         </div>
+      </div>
+
+      <div class="field" id="images">
+        <span class="label">Images</span>
+        <div class="imgrow">
+          <span class="imglabel">Background</span>
+          <label class="btn small file-btn">Choose image<input type="file" id="bgFile" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Choose a background image"></label>
+          <span class="imgname" id="bgName"></span>
+          <button type="button" class="link" id="bgClear" hidden>Remove</button>
+        </div>
+        <div class="imgopts" id="bgOpts" hidden>
+          <label class="label" for="tint">Colour tint over image <output id="tintOut">55%</output></label>
+          <input type="range" id="tint" min="0" max="90" step="5" value="55">
+          <p class="hint">The tint uses your background colour so the text stays readable.</p>
+        </div>
+        <div class="imgrow">
+          <span class="imglabel">Logo</span>
+          <label class="btn small file-btn">Choose image<input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Choose a logo or overlay image"></label>
+          <span class="imgname" id="logoName"></span>
+          <button type="button" class="link" id="logoClear" hidden>Remove</button>
+        </div>
+        <div class="imgopts" id="logoOpts" hidden>
+          <span class="label">Position</span>
+          <div class="seg" id="logoPos" role="group" aria-label="Logo position">
+            <button type="button" data-v="tl">Top left</button>
+            <button type="button" data-v="tr">Top right</button>
+            <button type="button" data-v="bl">Bottom left</button>
+            <button type="button" data-v="br">Bottom right</button>
+          </div>
+          <label class="label" for="logoSize">Size <output id="logoSizeOut">90 px</output></label>
+          <input type="range" id="logoSize" min="40" max="240" step="10" value="90">
+          <span class="label">Show on</span>
+          <div class="seg" id="logoOn" role="group" aria-label="Which slides show the logo">
+            <button type="button" data-v="all">All slides</button>
+            <button type="button" data-v="edges">Cover and closing</button>
+            <button type="button" data-v="cover">Cover only</button>
+          </div>
+        </div>
+        <p class="hint" id="imgStatus" role="status">Images stay on your device: they aren't uploaded or saved. Use a PNG with a transparent background for logos.</p>
       </div>
 
       <div class="field">
@@ -231,7 +285,49 @@ const els = { text:$("text"), maxChars:$("maxChars"), maxOut:$("maxOut"), merge:
   cta:$("cta"), ctaText:$("ctaText"), sheet:$("sheet"), count:$("count"), warn:$("warn"), zipBtn:$("zipBtn"),
   shareBtn:$("shareBtn"), status:$("status"), sampleTag:$("sampleTag") };
 
-let state = { theme:"ink", font:"bold", align:"left", custom:{ bg:THEMES.ink.bg, accent:THEMES.ink.accent } };
+let state = { theme:"ink", font:"bold", align:"left", custom:{ bg:THEMES.ink.bg, accent:THEMES.ink.accent },
+  tint:55, logoPos:"br", logoSize:90, logoOn:"all" };
+
+/* ---------- images ---------- */
+// Both images are decoded in the browser and never uploaded or saved. They are shrunk once here so that redrawing
+// every slide on each keystroke stays fast: the background becomes a slide-sized canvas (cover-cropped), the logo a
+// canvas capped at 800px.
+const LOGO_POS = ["tl", "tr", "bl", "br"], LOGO_ON = ["all", "edges", "cover"];
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+let bgCanvas = null, logoCanvas = null;
+function readImage(file){
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\/(png|jpeg|webp|gif)$/.test(file.type)) return reject(new Error("Choose a PNG, JPG, WebP or GIF image."));
+    if (file.size > MAX_IMAGE_BYTES) return reject(new Error("That image is over 20 MB. Choose a smaller one."));
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Couldn't read that image. Try a different file.")); };
+    img.src = url;
+  });
+}
+function coverCanvas(img){
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const k = Math.max(W / img.naturalWidth, H / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k;
+  c.getContext("2d").drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  return c;
+}
+function fitCanvas(img, max){
+  const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+function drawLogo(ctx, opt, kind, barY){
+  if (!logoCanvas) return;
+  if (opt.logoOn === "edges" ? kind === "body" : opt.logoOn === "cover" ? kind !== "cover" : false) return;
+  const ratio = logoCanvas.width / logoCanvas.height;
+  let h = opt.logoSize, w = h * ratio;
+  if (w > W * .45){ w = W * .45; h = w / ratio; }
+  const x = opt.logoPos.endsWith("l") ? PAD : W - PAD - w;
+  // Clear of the handle and slide number at the top, and of the progress bar and "Swipe" label at the bottom.
+  const y = opt.logoPos.startsWith("t") ? PAD + 48 : barY - 70 - h;
+  ctx.drawImage(logoCanvas, x, y, w, h);
+}
 
 /* ---------- custom colours ---------- */
 let customEdited = false; // true once the visitor has chosen custom colours (this visit or a saved one)
@@ -319,6 +415,10 @@ function load(){
       els.text.value = s.text ?? SAMPLE; els.maxChars.value = s.max ?? 220; els.merge.checked = !!s.merge;
       els.handle.value = s.handle ?? ""; els.cta.checked = s.cta ?? true; els.ctaText.value = s.ctaText ?? CTA_DEFAULT;
       if (s.custom){ const bg = normHex(s.custom.bg), accent = normHex(s.custom.accent); if (bg && accent){ state.custom = { bg, accent }; customEdited = true; } }
+      if (Number.isFinite(s.tint)) state.tint = Math.min(90, Math.max(0, s.tint));
+      if (Number.isFinite(s.logoSize)) state.logoSize = Math.min(240, Math.max(40, s.logoSize));
+      if (LOGO_POS.includes(s.logoPos)) state.logoPos = s.logoPos;
+      if (LOGO_ON.includes(s.logoOn)) state.logoOn = s.logoOn;
       if (THEMES[s.theme] || s.theme === "custom") state.theme = s.theme; if (FONTS[s.font]) state.font = s.font; if (s.align) state.align = s.align;
       return;
     }
@@ -403,6 +503,10 @@ function drawSlide(text, kind, i, n, opt){
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const ctx = c.getContext("2d"), T = getTheme(opt.theme), F = FONTS[opt.font];
   ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H);
+  if (bgCanvas){
+    ctx.drawImage(bgCanvas, 0, 0);
+    if (opt.tint > 0){ ctx.globalAlpha = opt.tint / 100; ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  }
   ctx.textBaseline = "alphabetic";
 
   ctx.font = `500 30px ${LABEL}`; ctx.fillStyle = T.muted;
@@ -437,6 +541,7 @@ function drawSlide(text, kind, i, n, opt){
     for (const t of line.words){ ctx.fillStyle = t.acc ? T.accent : T.fg; ctx.fillText(t.w, x, y); x += t.ww + R.space; }
     y += lineH;
   }
+  drawLogo(ctx, opt, kind, barY);
   return c;
 }
 
@@ -538,9 +643,31 @@ $("optinForm").addEventListener("submit", async e => {
 function reportHeight(){
   if (window.parent === window) return;
   window.parent.postMessage({ type:"carousel-cutter:height", height: Math.ceil(document.documentElement.scrollHeight) }, "*");
+  placeFrameSticky();
 }
 if (window.ResizeObserver) new ResizeObserver(reportHeight).observe(document.body);
-window.addEventListener("load", reportHeight);
+window.addEventListener("load", () => { reportHeight(); if (window.parent !== window) window.parent.postMessage({ type:"carousel-cutter:ready" }, "*"); });
+
+/* ---------- keep the controls in view inside the host iframe ---------- */
+// The iframe is as tall as its content, so it never scrolls and CSS sticky has nothing to stick to. Instead the host
+// page tells us where the iframe sits in its viewport (top, vh) as the visitor scrolls, and the panel is moved to match.
+let hostView = null;
+function placeFrameSticky(){
+  if (window.parent === window || !hostView) return;
+  const panel = $("controls"), grid = panel.parentElement, margin = 16;
+  if (!matchMedia("(min-width:920px)").matches){ panel.style.maxHeight = ""; panel.style.transform = ""; return; }
+  panel.style.maxHeight = Math.max(360, hostView.vh - margin * 2) + "px";
+  const want = margin - hostView.top - grid.getBoundingClientRect().top;
+  const max = Math.max(0, grid.clientHeight - panel.offsetHeight);
+  panel.style.transform = `translateY(${Math.round(Math.min(max, Math.max(0, want)))}px)`;
+}
+window.addEventListener("message", e => {
+  if (e.source !== window.parent || !e.data || e.data.type !== "carousel-cutter:viewport") return;
+  const top = +e.data.top, vh = +e.data.vh;
+  if (!Number.isFinite(top) || !(vh > 0 && vh < 10000)) return;
+  hostView = { top, vh }; placeFrameSticky();
+});
+window.addEventListener("resize", placeFrameSticky);
 
 /* ---------- controls ---------- */
 function buildControls(){
@@ -579,7 +706,7 @@ function buildControls(){
     const b = document.createElement("button"); b.type = "button"; b.dataset.v = k; b.textContent = f.name;
     b.style.fontFamily = f.display; fw.appendChild(b);
   }
-  [["themes","theme"],["fonts","font"],["align","align"]].forEach(([id, key]) => {
+  [["themes","theme"],["fonts","font"],["align","align"],["logoPos","logoPos"],["logoOn","logoOn"]].forEach(([id, key]) => {
     const g = $(id);
     const sync = () => g.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === state[key])));
     g.addEventListener("click", e => {
@@ -593,6 +720,40 @@ function buildControls(){
   updateCustomUI();
   ["text","maxChars","handle","ctaText"].forEach(id => els[id].addEventListener("input", schedule));
   ["merge","cta"].forEach(id => els[id].addEventListener("change", render));
+  buildImageControls();
+}
+
+function buildImageControls(){
+  const status = $("imgStatus"), defaultNote = status.textContent;
+  const note = (msg, err) => { status.textContent = msg || defaultNote; status.classList.toggle("err", !!err); };
+  const ui = {
+    bg:   { file:$("bgFile"),   name:$("bgName"),   clear:$("bgClear"),   opts:$("bgOpts") },
+    logo: { file:$("logoFile"), name:$("logoName"), clear:$("logoClear"), opts:$("logoOpts") },
+  };
+  function show(which, name){
+    const u = ui[which]; u.name.textContent = name || ""; u.name.title = name || "";
+    u.clear.hidden = u.opts.hidden = !name;
+    reportHeight();
+  }
+  function wire(which, make, set){
+    const u = ui[which];
+    u.file.addEventListener("change", async () => {
+      const f = u.file.files[0]; if (!f) return;
+      try{ set(make(await readImage(f))); show(which, f.name); note(); render(); }
+      catch(e){ note(e.message, true); }
+      finally{ u.file.value = ""; } // lets the same file be chosen again after Remove
+    });
+    u.clear.addEventListener("click", () => { set(null); show(which, ""); note(); render(); });
+  }
+  wire("bg",   img => coverCanvas(img),        c => bgCanvas = c);
+  wire("logo", img => fitCanvas(img, 800),     c => logoCanvas = c);
+
+  const tint = $("tint"), logoSize = $("logoSize");
+  tint.value = state.tint; logoSize.value = state.logoSize;
+  const outs = () => { $("tintOut").textContent = state.tint + "%"; $("logoSizeOut").textContent = state.logoSize + " px"; };
+  tint.addEventListener("input", () => { state.tint = +tint.value; outs(); schedule(); });
+  logoSize.addEventListener("input", () => { state.logoSize = +logoSize.value; outs(); schedule(); });
+  outs();
 }
 
 load(); buildControls(); render();

@@ -84,10 +84,22 @@ function carousel_cutter_render_shortcode($atts) {
     (function () {
         var frame = document.getElementById(<?php echo wp_json_encode($id); ?>);
         if (!frame) return;
+        var origin = new URL(frame.src, location.href).origin, queued = false;
+        // Tell the tool where it sits in the viewport so it can keep its settings panel on screen while the slides scroll.
+        function sendViewport() {
+            queued = false;
+            if (!frame.contentWindow) return;
+            frame.contentWindow.postMessage({ type: 'carousel-cutter:viewport', top: frame.getBoundingClientRect().top, vh: window.innerHeight }, origin);
+        }
+        function queueViewport() { if (!queued) { queued = true; requestAnimationFrame(sendViewport); } }
+        window.addEventListener('scroll', queueViewport, { passive: true });
+        window.addEventListener('resize', queueViewport);
         window.addEventListener('message', function (e) {
-            if (e.source !== frame.contentWindow || !e.data || e.data.type !== 'carousel-cutter:height') return;
+            if (e.source !== frame.contentWindow || !e.data) return;
+            if (e.data.type === 'carousel-cutter:ready') { sendViewport(); return; }
+            if (e.data.type !== 'carousel-cutter:height') return;
             var h = parseInt(e.data.height, 10);
-            if (h > 0 && h < 20000) { frame.style.minHeight = '0'; frame.style.height = h + 'px'; }
+            if (h > 0 && h < 20000) { frame.style.minHeight = '0'; frame.style.height = h + 'px'; queueViewport(); }
         });
     })();
     </script>

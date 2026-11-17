@@ -21,6 +21,8 @@ Optional attributes:
 
 == Notes ==
 * Everything runs in the visitor's browser; their text is never sent to or stored on the server. A draft is kept in the visitor's own browser (localStorage) so they don't lose their work. Only an email they choose to submit is sent.
+* Background and logo images are read and drawn in the visitor's browser only: they are never uploaded and are not kept between visits (only the tint, logo position, size and "show on" settings are remembered).
+* On screens at least 920px wide, the text and settings panel stays in view and scrolls on its own while the slides scroll. This relies on the page script the shortcode prints, which tells the tool where it sits on the page. If your theme has a fixed header that covers the top of the page, the panel can sit slightly under it.
 * The usage counter under the tool stores two numbers on your site (people and slides) and nothing else: no text, IP addresses or identifiers. A "person" is a browser that has finished a download for the first time; the tool remembers this in that browser's localStorage, so clearing site data or switching browsers counts again. The counts can't be made tamper-proof, since anyone can call the endpoint, but each IP is limited to 60 calls an hour.
 * The tool runs in an iframe so the theme's styles and the tool's styles can't interfere.
 * Bundles JSZip 3.10.1 (MIT or GPLv3).
